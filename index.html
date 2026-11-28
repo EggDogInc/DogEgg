@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <title>Doug's Deep Dive</title>
+  <link rel="stylesheet" href="./styles.css?v=20261128_1127" />
+</head>
+<body>
+  <!-- Password Gate (Client-Side AES-256-GCM Decryption) -->
+  <main id="login-view" class="login-wrap">
+    <form id="login-form" class="login-card" autocomplete="on">
+      <div class="brand-badge">ENCRYPTED FEED</div>
+      <h1>Doug's Deep Dive</h1>
+      <p class="muted">Enter password to decrypt the mechanics &amp; discovery feed locally in your browser.</p>
+
+      <label class="field-label" for="password-input">Password</label>
+      <div class="pw-row">
+        <input
+          id="password-input"
+          type="password"
+          name="password"
+          placeholder="Enter password..."
+          autocomplete="current-password"
+          required
+        />
+        <button type="button" id="toggle-pw-btn" class="btn btn-ghost" aria-label="Show password">Show</button>
+      </div>
+
+      <label class="remember-row">
+        <input type="checkbox" id="remember-checkbox" checked />
+        <span>Remember on this device</span>
+      </label>
+
+      <div id="login-error" class="error-banner hidden"></div>
+
+      <button type="submit" id="login-submit-btn" class="btn btn-primary btn-full">
+        Unlock Feed
+      </button>
+    </form>
+  </main>
+
+  <!-- Authenticated App -->
+  <div id="app-view" class="app-shell hidden">
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="brand-dot"></span>
+        <div>
+          <div class="topbar-title">Doug's Deep Dive</div>
+          <div id="source-meta" class="topbar-sub">v1.2.5.1</div>
+        </div>
+      </div>
+
+      <div class="topbar-controls">
+        <input
+          id="search-input"
+          type="search"
+          class="search-input"
+          placeholder="Search outcomes, steps, tags, notes..."
+        />
+
+        <select id="tag-filter" class="select-input" aria-label="Filter by tag">
+          <option value="ALL">All Tags</option>
+        </select>
+
+        <select id="sort-select" class="select-input" aria-label="Sort order">
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="code">By Code</option>
+        </select>
+
+        <button type="button" id="new-tag-btn" class="btn btn-sm" title="Create or manage custom tags">+ Tag</button>
+        <button type="button" id="new-cat-btn" class="btn btn-sm" title="Add, rename, or remove categories">Categories</button>
+
+        <div class="view-toggle" role="group" aria-label="View mode">
+          <button type="button" id="view-list-btn" class="btn btn-sm active">Newsfeed</button>
+          <button type="button" id="view-board-btn" class="btn btn-sm">Columns</button>
+        </div>
+
+        <button type="button" id="new-item-btn" class="btn btn-primary btn-sm">+ Add Lead</button>
+        <button type="button" id="sync-snapshot-btn" class="btn btn-sm" title="Configure $0 live two-way GitHub sync or manual backup">☁️ Live Sync</button>
+        <span id="save-status" class="save-pill">Local Only</span>
+        <button type="button" id="lock-btn" class="btn btn-ghost btn-sm" title="Lock feed">Lock</button>
+      </div>
+    </header>
+
+    <!-- Focus Category & Feed Filter Bar -->
+    <nav id="focus-tabs" class="focus-tabs" aria-label="Category filter"></nav>
+
+    <!-- Active Tag Filter Banner -->
+    <div id="active-filter-bar" class="active-filter-bar hidden"></div>
+
+    <!-- Main Newsfeed / Board Container -->
+    <main id="board-container" class="board-list"></main>
+  </div>
+
+  <!-- Add Custom Lead Modal -->
+  <div id="modal-backdrop" class="modal-backdrop hidden">
+    <form id="new-item-form" class="modal-card">
+      <div class="modal-header">
+        <h2>Add New Discovery Lead</h2>
+        <button type="button" id="modal-close-btn" class="btn btn-ghost btn-sm">✕</button>
+      </div>
+
+      <label class="field-label" for="new-title">Title</label>
+      <input id="new-title" type="text" required placeholder="Short plain-English title..." />
+
+      <div class="form-row-2">
+        <div>
+          <label class="field-label" for="new-category">Category</label>
+          <select id="new-category" class="select-input"></select>
+        </div>
+        <div>
+          <label class="field-label" for="new-tag">Primary Tag</label>
+          <input id="new-tag" type="text" value="Custom Lead" />
+        </div>
+      </div>
+
+      <label class="field-label" for="new-howto">Expected Outcome / Lead Preview</label>
+      <input id="new-howto" type="text" placeholder="What happens in-game..." />
+
+      <label class="field-label" for="new-steps">Human Setup Steps</label>
+      <textarea id="new-steps" rows="4" placeholder="1. First step...&#10;2. Second step..."></textarea>
+
+      <div class="modal-actions">
+        <button type="button" id="modal-cancel-btn" class="btn btn-ghost">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Lead</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- New Tag Modal -->
+  <div id="tag-modal-backdrop" class="modal-backdrop hidden">
+    <form id="new-tag-form" class="modal-card modal-card-sm">
+      <div class="modal-header">
+        <h2>Manage &amp; Create Tags</h2>
+        <button type="button" id="tag-modal-close-btn" class="btn btn-ghost btn-sm">✕</button>
+      </div>
+
+      <label class="field-label" for="tag-name-input">Create New Tag</label>
+      <div class="pw-row">
+        <input id="tag-name-input" type="text" placeholder="e.g., Filmed, Patch Check, Funny..." />
+        <button type="submit" class="btn btn-primary">Add</button>
+      </div>
+
+      <div class="field-label">Available Custom Tags</div>
+      <div id="existing-tags-list" class="existing-tags-list"></div>
+    </form>
+  </div>
+
+  <!-- Category Manager Modal -->
+  <div id="cat-modal-backdrop" class="modal-backdrop hidden">
+    <form id="new-cat-form" class="modal-card">
+      <div class="modal-header">
+        <h2>Manage Categories</h2>
+        <button type="button" id="cat-modal-close-btn" class="btn btn-ghost btn-sm">✕</button>
+      </div>
+
+      <label class="field-label" for="cat-name-input">Create New Category</label>
+      <div class="pw-row">
+        <input id="cat-name-input" type="text" placeholder="e.g., Filming Next, Saved for Finale..." />
+        <button type="submit" class="btn btn-primary">Add</button>
+      </div>
+
+      <div class="field-label">Active Categories (Rename or Remove — items safely return to New)</div>
+      <div id="existing-cats-list" class="existing-tags-list"></div>
+
+      <div id="hidden-cats-wrap" class="hidden">
+        <div class="field-label">Removed Built-in Categories (Click to restore)</div>
+        <div id="hidden-cats-list" class="existing-tags-list"></div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Live GitHub Two-Way Sync Modal -->
+  <div id="sync-modal-backdrop" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>☁️ Live Two-Way Sync ($0 GitHub API)</h2>
+        <button type="button" id="sync-modal-close-btn" class="btn btn-ghost btn-sm">✕</button>
+      </div>
+      <div id="sync-banner" class="sync-status-banner">
+        Not configured — edits save locally in this browser only. Friends without a token remain read-only.
+      </div>
+
+      <form id="gh-sync-form">
+        <label class="field-label" for="gh-repo-input">Private Source Repo (owner/repo)</label>
+        <input id="gh-repo-input" type="text" placeholder="owner/private-repo" />
+
+        <div class="form-row-2">
+          <div>
+            <label class="field-label" for="gh-branch-input">Branch</label>
+            <input id="gh-branch-input" type="text" value="main" />
+          </div>
+          <div>
+            <label class="field-label" for="gh-path-input">State File Path</label>
+            <input id="gh-path-input" type="text" value="data/user_state.json" />
+          </div>
+        </div>
+
+        <label class="field-label" for="gh-token-input">Fine-Grained GitHub Token (Contents: Read &amp; Write)</label>
+        <input id="gh-token-input" type="password" placeholder="github_pat_... (stored in localStorage on this device only)" />
+
+        <div class="modal-actions">
+          <button type="button" id="gh-clear-btn" class="btn btn-ghost btn-sm">Disconnect</button>
+          <button type="button" id="gh-pull-btn" class="btn btn-sm">Pull Now</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save &amp; Connect</button>
+        </div>
+      </form>
+
+      <details class="sync-fallback-details">
+        <summary style="cursor:pointer;font-size:12px;color:var(--muted)">Manual JSON Backup / Restore</summary>
+        <div class="pw-row" style="margin-top:8px">
+          <button type="button" id="copy-snapshot-btn" class="btn btn-sm btn-full">📋 Copy JSON Snapshot</button>
+        </div>
+        <label class="field-label" for="import-snapshot-area">Paste JSON Snapshot</label>
+        <textarea id="import-snapshot-area" rows="3" placeholder='{"categories":...}'></textarea>
+        <div class="modal-actions">
+          <button type="button" id="reset-local-btn" class="btn btn-ghost btn-sm">Reset Local Cache</button>
+          <button type="button" id="import-snapshot-btn" class="btn btn-sm">Import JSON</button>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden">Copied to clipboard!</div>
+
+  <script src="./app.js?v=20261128_1127" type="module"></script>
+</body>
+</html>
